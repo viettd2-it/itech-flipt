@@ -1,28 +1,35 @@
-version: "3"
+version: '3.8'
 
 services:
-  server:
-    build:
-      context: .
-      dockerfile: ./Dockerfile.dev
-    working_dir: /server
+  flipt:
+    image: viettditech/flipt-custom:v1.0.0
+#    image: flipt-custom:local
     ports:
       - "8080:8080"
+    environment:
+      - FLIPT_DB_URL=postgres://viettd:postgres@host.docker.internal:5432/flipt_1?sslmode=disable
+      - FLIPT_LOG_LEVEL=debug
+      - FLIPT_META_TELEMETRY_ENABLED=false
+      - FLIPT_CACHE_ENABLED=true
+      - FLIPT_CACHE_TTL=60s
+      - FLIPT_CACHE_BACKEND=redis
+      - FLIPT_CACHE_REDIS_HOST=redis
+      - FLIPT_CACHE_REDIS_PORT=6379
     volumes:
-      - .:/server
-    command: ["mage", "go:run"]
+      - ./flipt-config.yml:/flipt-config.yml
+      - ./opa-policy:/policy
+    command: [ "./flipt", "--force-migrate", "--config", "/etc/flipt/config/flipt-config.yml" ]
+    networks:
+      - flipt_net
 
-  ui:
-    depends_on:
-      - server
-    build: ./ui
-    working_dir: /ui
+  redis:
+    image: redis:7
     ports:
-      - "5173:5173"
-    volumes:
-      - ./ui:/ui
-      - exclude:/ui/node_modules
-    command: ["npm", "run", "dev"]
+      - "6379:6379"
+    networks:
+      - flipt_net
 
-volumes:
-  exclude:
+networks:
+  flipt_net:
+    driver: bridge
+

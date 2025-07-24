@@ -1,0 +1,31 @@
+version: "1.0"
+
+server:
+  http_port: 8080
+
+authentication:
+  required: true
+  session:
+    domain: localhost:8080
+    token_lifetime: 10m
+  methods:
+    oidc:
+      enabled: true
+      providers:
+        keycloak:
+          issuer_url: "https://keycloak.dev.itech.asia/realms/business-employee-portal"
+          client_id: "flipt-client"
+          client_secret: "cIrOzZ6A94TRsoeKsEfQ7JBEDARhd4Gw"
+          redirect_address: "http://localhost:8080"
+          namespace_claim: "allowed_namespaces"
+
+authorization:
+  required: true
+  backend: local
+  local:
+    policy:
+#      path: "./config-v/opa-policy/policy.rego"
+      path: "/etc/flipt/policy/policy.rego"
+
+#db:
+#  url: "postgres://viettd:postgres@localhost:5432/flipt_1?sslmode=disable"

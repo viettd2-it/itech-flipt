@@ -56,7 +56,7 @@ devenv.local.nix
 
 build/mage_output_file.go
 
-*.rego
+#*.rego
 !**/**/testdata/*.rego
 
 release-notes.md
