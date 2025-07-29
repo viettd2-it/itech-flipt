@@ -1,0 +1,30 @@
+[Unit]
+Description=Flipt Feature Flag Service
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=flipt
+Group=flipt
+WorkingDirectory=/opt/flipt
+ExecStart=/opt/flipt/bin/flipt --config /opt/flipt/config/flipt-config.yml
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=flipt
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/flipt /opt/flipt/logs
+
+# Environment
+Environment=FLIPT_LOG_LEVEL=warn
+
+[Install]
+WantedBy=multi-user.target

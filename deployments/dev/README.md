@@ -1,0 +1,1 @@
+In local, to be easier, we use docker-compose to run the dev environment.
