@@ -39,8 +39,8 @@ RUN mkdir -p /etc/flipt/config /etc/flipt/policy /var/opt/flipt /var/log/flipt
 COPY --from=build /home/flipt/bin/flipt /
 
 # Copy PRODUCTION config by default
-COPY deployments/flipt-config.prod.yml /etc/flipt/config/flipt-config.yml.template
-#COPY deployments/flipt-config.local.yml /etc/flipt/config/flipt-config.yml.template
+#COPY deployments/flipt-config.prod.yml /etc/flipt/config/flipt-config.yml.template
+COPY deployments/flipt-config.local.yml /etc/flipt/config/flipt-config.yml.template
 COPY deployments/opa-policy/policy.rego /etc/flipt/policy/policy.rego
 
 # Simple startup script (no envsubst needed)

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 
+	"go.flipt.io/flipt/internal/pubsub"
 	"go.flipt.io/flipt/internal/server/evaluation"
 	"go.flipt.io/flipt/internal/storage"
 	flipt "go.flipt.io/flipt/rpc/flipt"
@@ -24,6 +25,7 @@ type Server struct {
 	store  storage.Store
 	flipt.UnimplementedFliptServer
 	evaluator MultiVariateEvaluator
+	publisher pubsub.Publisher
 }
 
 // New creates a new Server
@@ -32,6 +34,16 @@ func New(logger *zap.Logger, store storage.Store) *Server {
 		logger:    logger,
 		store:     store,
 		evaluator: evaluation.NewEvaluator(logger, store),
+	}
+}
+
+// NewWithPublisher creates a new Server with a publisher for signal handling
+func NewWithPublisher(logger *zap.Logger, store storage.Store, publisher pubsub.Publisher) *Server {
+	return &Server{
+		logger:    logger,
+		store:     store,
+		evaluator: evaluation.NewEvaluator(logger, store),
+		publisher: publisher,
 	}
 }
 

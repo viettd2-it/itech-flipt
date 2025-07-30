@@ -40,6 +40,8 @@ var DecodeHooks = []mapstructure.DecodeHookFunc{
 	stringToEnumHookFunc(stringToScheme),
 	stringToEnumHookFunc(stringToDatabaseProtocol),
 	stringToEnumHookFunc(stringToAuthMethod),
+	stringToEnumHookFunc(stringToPubSubBackend),
+	stringToEnumHookFunc(stringToRedisPubSubMode),
 }
 
 // Config contains all of Flipts configuration needs.
@@ -60,6 +62,7 @@ type Config struct {
 	Authentication AuthenticationConfig `json:"authentication,omitempty" mapstructure:"authentication" yaml:"authentication,omitempty"`
 	Authorization  AuthorizationConfig  `json:"authorization,omitempty" mapstructure:"authorization" yaml:"authorization,omitempty"`
 	Cache          CacheConfig          `json:"cache,omitempty" mapstructure:"cache" yaml:"cache,omitempty"`
+	PubSub         PubSubConfig         `json:"pubsub,omitempty" mapstructure:"pubsub" yaml:"pubsub,omitempty"`
 	Cors           CorsConfig           `json:"cors,omitempty" mapstructure:"cors" yaml:"cors,omitempty"`
 	Database       DatabaseConfig       `json:"db,omitempty" mapstructure:"db" yaml:"db,omitempty"`
 	Diagnostics    DiagnosticConfig     `json:"diagnostics,omitempty" mapstructure:"diagnostics" yaml:"diagnostics,omitempty"`
@@ -579,6 +582,27 @@ func Default() *Config {
 				ConnMaxIdleTime: 0,
 				NetTimeout:      0,
 				Mode:            RedisCacheModeSingle,
+			},
+		},
+
+		PubSub: PubSubConfig{
+			Enabled: false,
+			Backend: PubSubBackendRedis,
+			Redis: RedisPubSubConfig{
+				Host:            "localhost",
+				Port:            6379,
+				RequireTLS:      false,
+				Password:        "",
+				DB:              0,
+				PoolSize:        0,
+				MinIdleConn:     0,
+				ConnMaxIdleTime: 0,
+				NetTimeout:      0,
+				Mode:            RedisPubSubModeSingle,
+			},
+			Signals: SignalsConfig{
+				Enabled:  true,
+				Channels: DefaultChannels(),
 			},
 		},
 

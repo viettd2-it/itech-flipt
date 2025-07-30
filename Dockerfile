@@ -32,7 +32,7 @@ ENV CGO_ENABLED=1
 
 # Build binary and UI
 RUN go install github.com/magefile/mage@latest
-RUN mage build
+RUN mage build -v
 RUN mage ui:build
 
 # ----- Stage 2: Minimal runtime image -----

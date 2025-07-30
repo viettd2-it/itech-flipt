@@ -10,6 +10,13 @@ allow if {
   namespace == "default"
 }
 
+# Allow if namespace from request matches token namespace (for static token)
+allow if {
+  token_ns := input.authentication.metadata["io.flipt.auth.token.namespace"]
+  namespace := extract_namespace(input.request)
+  namespace == token_ns
+}
+
 # Allow access based on allowed_namespaces claim
 allow if {
   claims := json.unmarshal(input.authentication.metadata["io.flipt.auth.claims"])
