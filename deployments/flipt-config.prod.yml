@@ -1,0 +1,71 @@
+   version: "1.0"
+
+server:
+  protocol: http
+  host: 0.0.0.0
+  http_port: 8080
+  https_port: 443
+
+authentication:
+  required: true
+  session:
+    domain: localhost:8080
+    token_lifetime: 24h
+    secure: true  # HTTPS in prod
+  methods:
+    oidc:
+      enabled: true
+      providers:
+        keycloak:
+          issuer_url: https://keycloak.prod.company.com/realms/business
+          client_id: prod-flipt-client
+          client_secret: CHANGE_ME_IN_PRODUCTION
+          redirect_address: https://flipt.company.com
+          namespace_claim: allowed_namespaces
+
+authorization:
+  required: true
+  backend: local
+  local:
+    policy:
+      path: /etc/flipt/policy/policy.rego
+
+db:
+  url: postgres://flipt:password@prod-db:5432/flipt?sslmode=require
+  max_idle_conn: 10
+  max_open_conn: 50
+  conn_max_lifetime: 300s
+
+cache:
+  enabled: true
+  backend: redis
+  ttl: 300s
+  redis:
+    host: prod-redis
+    port: 6379
+    password: ""
+    db: 0
+    require_tls: true  # TLS in prod
+    pool_size: 50
+    min_idle_conn: 2
+    conn_max_idle_time: 10m
+    net_timeout: 500ms
+
+log:
+  level: WARN
+  encoding: json
+
+audit:
+  sinks:
+    log:
+      enabled: true
+    webhook:
+      enabled: false
+
+cors:
+  enabled: true
+  allowed_origins: ["https://flipt.company.com"]
+
+meta:
+  check_for_updates: false
+  telemetry_enabled: true

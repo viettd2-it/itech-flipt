@@ -1,0 +1,69 @@
+version: "1.0"
+
+server:
+  protocol: http
+  host: 0.0.0.0
+  http_port: 8080
+  https_port: 443
+
+authentication:
+  required: true
+  session:
+    domain: localhost:8080
+    token_lifetime: 24h
+    secure: false  # HTTP in local
+  methods:
+    oidc:
+      enabled: true
+      providers:
+        keycloak:
+          issuer_url: https://keycloak.dev.itech.asia/realms/business-employee-portal
+          client_id: new-flipt-client
+          client_secret: IFfXXjLtIKl06pSauWN6boHLnMa8aBhh
+          redirect_address: http://localhost:8080
+          namespace_claim: allowed_namespaces
+
+authorization:
+  required: true
+  backend: local
+  local:
+    policy:
+      path: /etc/flipt/policy/policy.rego
+
+db:
+  url: postgres://viettd:postgres@host.docker.internal:5432/flipt_1?sslmode=disable
+  max_idle_conn: 10
+  max_open_conn: 50
+  conn_max_lifetime: 300s
+
+cache:
+  enabled: true
+  backend: redis
+  ttl: 300s
+  redis:
+    host: redis
+    port: 6379
+    password: ""
+    db: 0
+    require_tls: false
+    pool_size: 50
+    min_idle_conn: 2
+    conn_max_idle_time: 10m
+    net_timeout: 500ms
+
+log:
+  level: INFO
+  encoding: console
+
+#audit:
+#  sinks:
+#    log:
+#      enabled: true
+#
+#cors:
+#  enabled: true
+#  allowed_origins: ["*"]
+#
+#meta:
+#  check_for_updates: false
+#  telemetry_enabled: false

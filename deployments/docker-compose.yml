@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  flipt:
+    image: viettditech/flipt-dev:test
+#    build:
+#      context: ..
+#      dockerfile: deployments/Dockerfile
+    ports:
+      - "8080:8080"
+      - "9000:9000"
+    volumes:
+      - ./flipt-config.local.yml:/etc/flipt/config/flipt-config.yml:ro
+      - ./opa-policy:/etc/flipt/policy:ro
+    depends_on:
+      - redis
+    networks:
+      - flipt_net
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    networks:
+      - flipt_net
+
+networks:
+  flipt_net:
+    driver: bridge
