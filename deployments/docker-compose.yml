@@ -2,7 +2,8 @@ version: '3.8'
 
 services:
   flipt:
-    image: viettditech/flipt-dev:test
+#    image: viettditech/flipt-dev:test
+    image: viettditech/flipt-dev:test-pubsub
 #    build:
 #      context: ..
 #      dockerfile: deployments/Dockerfile

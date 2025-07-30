@@ -16,6 +16,7 @@ import "list"
 	authentication?: #authentication
 	authorization?:  #authorization
 	cache?:          #cache
+	pubsub?:         #pubsub
 	cors?:           #cors
 	diagnostics?:    #diagnostics
 	storage?:        #storage
@@ -171,6 +172,40 @@ import "list"
 			enabled?:           bool | *false
 			eviction_interval?: =~#duration | int | *"5m"
 			expiration?:        =~#duration | int | *"60s"
+		}
+	}
+
+	#pubsub: {
+		enabled?: bool | *false
+		backend?: *"redis"
+
+		redis?: {
+			host?:               string | *"localhost"
+			port?:               int | *6379
+			require_tls?:        bool | *false
+			db?:                 int | *0
+			prefix?:             string
+			username?:           string
+			password?:           string
+			pool_size?:          int | *0
+			min_idle_conn?:      int | *0
+			conn_max_idle_time?: =~#duration | int | *0
+			net_timeout?:        =~#duration | int | *0
+			ca_cert_path?:       string
+			ca_cert_bytes?:      string
+			insecure_skip_tls?:  bool | *false
+			mode?:               "single" | "cluster" | *""
+		}
+
+		signals?: {
+			enabled?: bool | *true
+			channels?: [...string] | *[
+				"flipt:cache:invalidation",
+				"flipt:config:reload",
+				"flipt:flags:update",
+				"flipt:health:check",
+				"flipt:signals:custom"
+			]
 		}
 	}
 

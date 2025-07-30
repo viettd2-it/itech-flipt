@@ -13,6 +13,8 @@ authentication:
     token_lifetime: 24h
     secure: false  # HTTP in local
   methods:
+    token:
+      enabled: true
     oidc:
       enabled: true
       providers:
@@ -50,6 +52,24 @@ cache:
     min_idle_conn: 2
     conn_max_idle_time: 10m
     net_timeout: 500ms
+
+# Redis PubSub for Signal Handling
+pubsub:
+  enabled: true
+  backend: redis
+  redis:
+    host: redis
+    port: 6379
+    db: 0
+    mode: single
+  signals:
+    enabled: true
+    channels:
+      - "flipt:cache:invalidation"
+      - "flipt:config:reload"
+      - "flipt:flags:update"
+      - "flipt:health:check"
+      - "flipt:signals:custom"
 
 log:
   level: INFO

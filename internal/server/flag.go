@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"encoding/json"
+	"time"
 
 	fliptotel "go.flipt.io/flipt/internal/server/otel"
 	"go.flipt.io/flipt/internal/storage"
@@ -65,6 +67,15 @@ func (s *Server) ListFlags(ctx context.Context, r *flipt.ListFlagRequest) (*flip
 func (s *Server) CreateFlag(ctx context.Context, r *flipt.CreateFlagRequest) (*flipt.Flag, error) {
 	s.logger.Debug("create flag", zap.Stringer("request", r))
 	flag, err := s.store.CreateFlag(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Publish flag creation signal if publisher is available
+	if s.publisher != nil {
+		s.publishFlagUpdateSignal(ctx, flag.Key, flag.NamespaceKey, "created")
+	}
+
 	s.logger.Debug("create flag", zap.Stringer("response", flag))
 	return flag, err
 }
@@ -72,7 +83,17 @@ func (s *Server) CreateFlag(ctx context.Context, r *flipt.CreateFlagRequest) (*f
 // UpdateFlag updates an existing flag
 func (s *Server) UpdateFlag(ctx context.Context, r *flipt.UpdateFlagRequest) (*flipt.Flag, error) {
 	s.logger.Debug("update flag", zap.Stringer("request", r))
+
 	flag, err := s.store.UpdateFlag(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Publish flag update signal if publisher is available
+	if s.publisher != nil {
+		s.publishFlagUpdateSignal(ctx, flag.Key, flag.NamespaceKey, "updated")
+	}
+
 	s.logger.Debug("update flag", zap.Stringer("response", flag))
 	return flag, err
 }
@@ -83,6 +104,12 @@ func (s *Server) DeleteFlag(ctx context.Context, r *flipt.DeleteFlagRequest) (*e
 	if err := s.store.DeleteFlag(ctx, r); err != nil {
 		return nil, err
 	}
+
+	// Publish flag deletion signal if publisher is available
+	if s.publisher != nil {
+		s.publishFlagUpdateSignal(ctx, r.Key, r.NamespaceKey, "deleted")
+	}
+
 	return &empty.Empty{}, nil
 }
 
@@ -109,4 +136,39 @@ func (s *Server) DeleteVariant(ctx context.Context, r *flipt.DeleteVariantReques
 		return nil, err
 	}
 	return &empty.Empty{}, nil
+}
+
+// publishFlagUpdateSignal publishes a flag update signal via Redis pubsub
+func (s *Server) publishFlagUpdateSignal(ctx context.Context, flagKey, namespaceKey, action string) {
+	signal := map[string]interface{}{
+		"type": "flag.update",
+		"data": map[string]interface{}{
+			"flag_key":  flagKey,
+			"namespace": namespaceKey,
+			"action":    action,
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"source":    "flipt-server",
+	}
+
+	signalBytes, err := json.Marshal(signal)
+	if err != nil {
+		s.logger.Error("failed to marshal flag update signal",
+			zap.String("flag_key", flagKey),
+			zap.String("action", action),
+			zap.Error(err))
+		return
+	}
+
+	if err := s.publisher.Publish(ctx, "flipt:flags:update", signalBytes); err != nil {
+		s.logger.Error("failed to publish flag update signal",
+			zap.String("flag_key", flagKey),
+			zap.String("action", action),
+			zap.Error(err))
+	} else {
+		s.logger.Info("published flag update signal",
+			zap.String("flag_key", flagKey),
+			zap.String("namespace", namespaceKey),
+			zap.String("action", action))
+	}
 }

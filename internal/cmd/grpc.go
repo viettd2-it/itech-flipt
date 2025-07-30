@@ -26,6 +26,9 @@ import (
 	"go.flipt.io/flipt/internal/containers"
 	"go.flipt.io/flipt/internal/info"
 	"go.flipt.io/flipt/internal/metrics"
+	"go.flipt.io/flipt/internal/pubsub"
+	redispubsub "go.flipt.io/flipt/internal/pubsub/redis"
+	fl
 	fliptserver "go.flipt.io/flipt/internal/server"
 	"go.flipt.io/flipt/internal/server/analytics"
 	"go.flipt.io/flipt/internal/server/analytics/clickhouse"
@@ -43,7 +46,9 @@ import (
 	"go.flipt.io/flipt/internal/server/evaluation"
 	evaluationdata "go.flipt.io/flipt/internal/server/evaluation/data"
 	"go.flipt.io/flipt/internal/server/metadata"
-	middlewaregrpc "go.flipt.io/flipt/internal/server/middleware/grpc"
+	redispubsub "go.flipt.io/flipt/internal/pubsub/redis"
+	"go.flipt.io/flipt/internal/signal"
+	redissignal "go.flipt.io/flipt/internal/signal/redis"
 	"go.flipt.io/flipt/internal/storage"
 	storagecache "go.flipt.io/flipt/internal/storage/cache"
 	fsstore "go.flipt.io/flipt/internal/storage/fs/store"
@@ -231,9 +236,9 @@ func NewGRPCServer(
 		otelgrpc.UnaryServerInterceptor(),
 	}
 
+	var cacher cache.Cacher
 	if cfg.Cache.Enabled {
 		var (
-			cacher        cache.Cacher
 			cacheShutdown errFunc
 			err           error
 		)
@@ -249,18 +254,52 @@ func NewGRPCServer(
 		logger.Debug("cache enabled", zap.Stringer("backend", cacher))
 	}
 
+	// Initialize signal handling if pubsub is enabled
+	var publisher pubsub.Publisher
+	if cfg.PubSub.Enabled {
+		_, signalShutdown, err := getSignalManager(ctx, logger, cfg, cacher)
+		if err != nil {
+			return nil, fmt.Errorf("creating signal manager: %w", err)
+		}
+
+		server.onShutdown(signalShutdown)
+
+		// Create publisher for flag operations
+		switch cfg.PubSub.Backend {
+		case config.PubSubBackendRedis:
+			redisPublisher, err := redispubsub.NewPublisher(logger, cfg.PubSub.Redis.ToRedisCacheConfig())
+			if err != nil {
+				logger.Error("failed to create redis publisher for flag operations", zap.Error(err))
+			} else {
+				publisher = redisPublisher
+				server.onShutdown(func(context.Context) error {
+					return redisPublisher.Close()
+				})
+			}
+		}
+
+		logger.Debug("signal handling enabled", zap.String("backend", cfg.PubSub.Backend.String()))
+	}
+
 	if cfg.Storage.IsReadOnly() {
 		store = unmodifiable.NewStore(store)
 	}
 
 	var (
-		fliptsrv    = fliptserver.New(logger, store)
+		fliptsrv    *fliptserver.Server
 		metasrv     = metadata.New(cfg, info)
 		evalsrv     = evaluation.New(logger, store)
 		evaldatasrv = evaluationdata.New(logger, store)
 		healthsrv   = health.NewServer()
 		ofrepsrv    = ofrep.New(logger, cfg.Cache, evalsrv, store)
 	)
+
+	// Create flipt server with or without publisher
+	if publisher != nil {
+		fliptsrv = fliptserver.NewWithPublisher(logger, store, publisher)
+	} else {
+		fliptsrv = fliptserver.New(logger, store)
+	}
 
 	var (
 		// authnOpts is a slice of options that will be passed to the authentication service.
@@ -633,6 +672,76 @@ func getCache(ctx context.Context, cfg *config.Config) (cache.Cacher, errFunc, e
 	})
 
 	return cacher, cacheFunc, cacheErr
+}
+
+var (
+	signalOnce    sync.Once
+	signalManager *signal.Manager
+	signalFunc    errFunc = func(context.Context) error { return nil }
+	signalErr     error
+)
+
+func getSignalManager(ctx context.Context, logger *zap.Logger, cfg *config.Config, cacher cache.Cacher) (*signal.Manager, errFunc, error) {
+	signalOnce.Do(func() {
+		switch cfg.PubSub.Backend {
+		case config.PubSubBackendRedis:
+			// Create Redis signal handler
+			redisHandler, err := redissignal.NewHandler(logger, cfg.PubSub.Redis.ToRedisCacheConfig())
+			if err != nil {
+				signalErr = fmt.Errorf("creating redis signal handler: %w", err)
+				return
+			}
+
+			// Create signal manager with no publisher (Redis handler handles publishing)
+			signalManager = signal.NewManager(logger, nil)
+			signalManager.AddHandler(redisHandler)
+
+			// Register cache invalidation handler if cache is enabled
+			if cacher != nil {
+				cacheHandler := signal.NewCacheHandler(logger, nil, cacher)
+				signalManager.AddHandler(cacheHandler)
+			}
+
+			// Register config reload handler (placeholder for now)
+			configHandler := signal.NewConfigHandler(logger, nil, func(ctx context.Context) error {
+				logger.Info("config reload signal received - not implemented yet")
+				return nil
+			})
+			signalManager.AddHandler(configHandler)
+
+			// Register feature flag update handler (placeholder for now)
+			flagHandler := signal.NewFeatureFlagHandler(logger, nil, func(ctx context.Context, data signal.FeatureFlagUpdateData) error {
+				logger.Info("feature flag update signal received",
+					zap.String("flag_key", data.FlagKey),
+					zap.String("action", data.Action))
+				return nil
+			})
+			signalManager.AddHandler(flagHandler)
+
+			// Register health check handler (placeholder for now)
+			healthHandler := signal.NewHealthHandler(logger, nil, func(ctx context.Context, data signal.HealthCheckData) error {
+				logger.Debug("health check signal received",
+					zap.String("status", data.Status),
+					zap.String("component", data.Component))
+				return nil
+			})
+			signalManager.AddHandler(healthHandler)
+
+			// Start the signal manager
+			if err := signalManager.Start(ctx); err != nil {
+				signalErr = fmt.Errorf("starting signal manager: %w", err)
+				return
+			}
+
+			signalFunc = func(ctx context.Context) error {
+				return signalManager.Stop(ctx)
+			}
+
+			logger.Info("signal manager started with Redis backend")
+		}
+	})
+
+	return signalManager, signalFunc, signalErr
 }
 
 var (
